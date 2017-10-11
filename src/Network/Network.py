@@ -9,9 +9,9 @@ from rdt import RDT
 ## Provides an abstraction for the network layer
 class NetworkLayer:
     #configuration parameters
-    prob_pkt_loss = 0
-    prob_byte_corr = 0
-    prob_pkt_reorder = 0
+    prob_pkt_loss = 0.1
+    prob_byte_corr = 0.1
+    prob_pkt_reorder = 0.1
 
     #class variables
     sock = None
@@ -92,8 +92,10 @@ class NetworkLayer:
                 with self.lock:
                     self.buffer_S += recv_bytes.decode('utf-8')
             # you may need to uncomment the BlockingIOError handling on Windows machines
-#             except BlockingIOError as err:
-#                 pass
+            except BlockingIOError as err:
+                 pass
+            except ConnectionAbortedError as err:
+                pass
             except socket.timeout as err:
                 pass
             if self.stop:
