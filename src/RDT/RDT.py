@@ -99,38 +99,25 @@ class RDT:
         Ongoing_Sequence_Num = self.seq_num
 
         while Ongoing_Sequence_Num == self.seq_num:
-
             self.network.udt_send(p.get_byte_S())
-            pFeedback = ""
+            response = ""
 
-            while pFeedback == "":
+            while response == "":
+                response = self.network.udt_receive()
 
-                pFeedback = self.network.udt_receive()
+            length = int(response[:Packet.length_S_length])
+            self.byte_buffer = response[length:]
 
-            length = int(pFeedback[:Packet.length_S_length])
-            self.byte_buffer = pFeedback[length:]
-
-            if not Packet.corrupt(pFeedback[:length]):
-
-                pFeedbackC = Packet.from_byte_S(pFeedback[:length])
-
-                if pFeedbackC.seq_num < self.seq_num:
-
-                    test = Packet(pFeedbackC.seq_num, "1")
+            if not Packet.corrupt(response[:length]):
+                responsePacket = Packet.from_byte_S(response[:length])
+                if responsePacket.seq_num < self.seq_num:
+                    test = Packet(responsePacket.seq_num, "1")
                     self.network.udt_send(test.get_byte_S())
-
-                elif pFeedbackC.msg_S is "0":
-
+                elif responsePacket.msg_S is "0":
                     self.byte_buffer = ""
-
-                elif pFeedbackC.msg_S is "1":
-
+                elif responsePacket.msg_S is "1":
                     self.seq_num += 1
-
-
-
             else:
-
                 self.byte_buffer = ""
 
     def rdt_2_1_receive(self):
@@ -138,49 +125,38 @@ class RDT:
         byte_S = self.network.udt_receive()
         self.byte_buffer += byte_S
         Ongoing_Sequence_Num = self.seq_num
+
         # Don't move on until seq_num has been toggled
         # keep extracting packets - if reordered, could get more than one
         while Ongoing_Sequence_Num == self.seq_num:
 
             # check if we have received enough bytes
             if len(self.byte_buffer) < Packet.length_S_length:
-
                 break  # not enough bytes to read packet length
+
             # extract length of packet
             length = int(self.byte_buffer[:Packet.length_S_length])
 
             if len(self.byte_buffer) < length:
-
                 break  # not enough bytes to read the whole packet
-
             # Check if packet is corrupt
             if Packet.corrupt(self.byte_buffer):
-
-                pResponse = Packet(self.seq_num, "0")
-                self.network.udt_send(pResponse.get_byte_S())
-
+                responsePacket = Packet(self.seq_num, "0")
+                self.network.udt_send(responsePacket.get_byte_S())
             else:
-
                 # create packet from buffer content
                 p = Packet.from_byte_S(self.byte_buffer[0:length])
-
                 if p.msg_S == "1" or p.msg_S == "0":
-
                     self.byte_buffer = self.byte_buffer[length:]
                     continue
-
                 elif p.seq_num == self.seq_num:
-
-                    pResponse = Packet(self.seq_num, "1")
-                    self.network.udt_send(pResponse.get_byte_S())
+                    responsePacket = Packet(self.seq_num, "1")
+                    self.network.udt_send(responsePacket.get_byte_S())
                     self.seq_num += 1
 
-
                 elif p.seq_num < self.seq_num:
-
-                    pResponse = Packet(p.seq_num, "1")
-                    self.network.udt_send(pResponse.get_byte_S())
-
+                    responsePacket = Packet(p.seq_num, "1")
+                    self.network.udt_send(responsePacket.get_byte_S())
 
                 ret_S = p.msg_S if (ret_S is None) else ret_S + p.msg_S
 
@@ -190,50 +166,35 @@ class RDT:
         return ret_S
 
     def rdt_3_0_send(self, msg_S):
-
         p = Packet(self.seq_num, msg_S)
         Ongoing_Sequence_Num = self.seq_num
 
         while Ongoing_Sequence_Num == self.seq_num:
-
             self.network.udt_send(p.get_byte_S())
-            pFeedback = ""
+            response = ""
             pTimer = time.time()
 
             # Waiting for ack/nak
-            while pFeedback == "" and pTimer + self.timeout > time.time():
+            while response == "" and pTimer + self.timeout > time.time():
+                response = self.network.udt_receive()
 
-                pFeedback = self.network.udt_receive()
-
-            if pFeedback == "":
-
+            if response == "":
                 continue
 
 
-            length = int(pFeedback[:Packet.length_S_length])
-            self.byte_buffer = pFeedback[length:]
+            length = int(response[:Packet.length_S_length])
+            self.byte_buffer = response[length:]
 
-            if not Packet.corrupt(pFeedback[:length]):
-
-                pFeedbackC = Packet.from_byte_S(pFeedback[:length])
-
-                if pFeedbackC.seq_num < self.seq_num:
-
-                    test = Packet(pFeedbackC.seq_num, "1")
+            if not Packet.corrupt(response[:length]):
+                responsePacket = Packet.from_byte_S(response[:length])
+                if responsePacket.seq_num < self.seq_num:
+                    test = Packet(responsePacket.seq_num, "1")
                     self.network.udt_send(test.get_byte_S())
-
-                elif pFeedbackC.msg_S is "0":
-
+                elif responsePacket.msg_S is "0":
                     self.byte_buffer = ""
-
-
-                elif pFeedbackC.msg_S is "1":
-
+                elif responsePacket.msg_S is "1":
                     self.seq_num += 1
-
-
             else:
-
                 self.byte_buffer = ""
 
     def rdt_3_0_receive(self):
@@ -249,24 +210,20 @@ class RDT:
 
             # check if we have received enough bytes
             if len(self.byte_buffer) < Packet.length_S_length:
-
                 break  # not enough bytes to read packet length
 
             # extract length of packet
             length = int(self.byte_buffer[:Packet.length_S_length])
 
             if len(self.byte_buffer) < length:
-
                 break  # not enough bytes to read the whole packet
 
             # Check if packet is corrupt
             if Packet.corrupt(self.byte_buffer):
-
-                pResponse = Packet(self.seq_num, "0")
-                self.network.udt_send(pResponse.get_byte_S())
+                responsePacket = Packet(self.seq_num, "0")
+                self.network.udt_send(responsePacket.get_byte_S())
 
             else:
-
                 # create packet from buffer content
                 p = Packet.from_byte_S(self.byte_buffer[0:length])
                 # Check packet
@@ -278,16 +235,14 @@ class RDT:
 
                 elif p.seq_num == self.seq_num:
 
-                    pResponse = Packet(self.seq_num, "1")
-                    self.network.udt_send(pResponse.get_byte_S())
+                    responsePacket = Packet(self.seq_num, "1")
+                    self.network.udt_send(responsePacket.get_byte_S())
                     self.seq_num += 1
 
                 if p.seq_num < self.seq_num:
 
-                    pResponse = Packet(p.seq_num, "1")
-                    self.network.udt_send(pResponse.get_byte_S())
-
-
+                    responsePacket = Packet(p.seq_num, "1")
+                    self.network.udt_send(responsePacket.get_byte_S())
 
                 # Add contents to return string
                 ret_S = p.msg_S if (ret_S is None) else ret_S + p.msg_S
